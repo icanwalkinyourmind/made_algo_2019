@@ -4,18 +4,18 @@
   Время работы O(n * log(k)). Доп. память O(k). Использовать слияние. */
 #include <iostream>
 
-void merge(int *arr, int start, int mid, int end) {
+template<typename T, typename CompareT>
+void merge(T *arr, int start, int mid, int end, CompareT compare) {
   if (start == end) {
     return;
   }
   int i = start;
   int j = mid;
   int k = 0;
-  int *result = new int[end - start];
-
+  T *result = new T[end - start];
 
   while ((i < mid) and (j < end)) {
-    if (arr[i] < arr[j]) {
+    if (compare(arr[i], arr[j])) {
       result[k] = arr[i];
       ++i;
     } else {
@@ -44,22 +44,34 @@ void merge(int *arr, int start, int mid, int end) {
 }
 
 // k - указывает на начало части массива, которая будет отсортирована
-void merge_sort(int *arr, int n, int k) {
+template<typename T, typename CompareT>
+void merge_sort(T *arr, int n, int k, CompareT compare) {
   for (int i = 1; i < n; i *= 2) {
     for (int j = k; j < n - i; j += 2 * i) {
       int end = j + 2 * i;
       if (end > n) {
         end = n;
       }
-      merge(arr, j, j + i, end);
+      merge(arr, j, j + i, end, compare);
     }
   }
 }
 
-void print_array(int *arr, int n) {
+template<typename T>
+void print_array(T *arr, int n) {
   for (int i = 0; i < n; ++i) {
     std::cout << arr[i] << ' ';
   }
+}
+
+template<typename T>
+class ComparerLess {
+ public:
+  bool operator()(T &first, T &second) const;
+};
+template<typename T>
+bool ComparerLess<T>::operator()(T &first, T &second) const {
+  return first < second;
 }
 
 int main() {
@@ -69,11 +81,13 @@ int main() {
   int *input_array = new int[arr_size];
   int sequence_length = 0;
 
+  ComparerLess<int> comparer = ComparerLess<int>();
+
   for (int i = 0; i < k; ++i) {
     std::cin >> input_array[i];
     ++sequence_length;
   }
-  merge_sort(input_array, k, 0);
+  merge_sort(input_array, k, 0, comparer);
 
   // пока есть что сичтывать
   while (sequence_length < n) {
@@ -84,8 +98,8 @@ int main() {
       ++sequence_length;
     }
     // как только заполнится, сортируем её и мержим с первой половиной
-    merge_sort(input_array, i, k);
-    merge(input_array, 0, k, i);
+    merge_sort(input_array, i, k, comparer);
+    merge(input_array, 0, k, i, comparer);
   }
 
   print_array(input_array, k);
