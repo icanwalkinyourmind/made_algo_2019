@@ -8,6 +8,7 @@
 #include <iostream>
 #include <deque>
 #include <functional>
+#include <assert.h>
 
 template<typename T>
 struct TreapNode {
@@ -27,16 +28,20 @@ class Treap {
  public:
   explicit Treap(CompareT compare);
   ~Treap();
+  Treap(const Treap &) = delete;
+  Treap(Treap &&) = delete;
+  Treap &operator=(const Treap &) = delete;
+  Treap &operator=(Treap &&) = delete;
   void add(T value);
   void remove(T value);
-  T get_k_stat(int k);
+  T get_k_stat(int k) const;
  private:
   TreapNode<T> *root = nullptr;
-  TreapNode<T> *merge(TreapNode<T> *left, TreapNode<T> *right);
-  std::pair<TreapNode<T> *, TreapNode<T> *> split(TreapNode<T> *node, T value);
-  void pre_order(std::function<void(TreapNode<T> *)> action);
   CompareT compare;
-  int get_subtree_size(TreapNode<T> *node);
+  static TreapNode<T> *merge(TreapNode<T> *left, TreapNode<T> *right);
+  static std::pair<TreapNode<T> *, TreapNode<T> *> split(TreapNode<T> *node, T value, CompareT compare_);
+  static int get_subtree_size(TreapNode<T> *node);
+  static void delete_subtree(TreapNode<T> *node);
 };
 
 template<typename T, typename CompareT>
@@ -63,20 +68,20 @@ TreapNode<T> *Treap<T, CompareT>::merge(TreapNode<T> *left, TreapNode<T> *right)
 }
 
 template<typename T, typename CompareT>
-std::pair<TreapNode<T> *, TreapNode<T> *> Treap<T, CompareT>::split(TreapNode<T> *node, T value) {
+std::pair<TreapNode<T> *, TreapNode<T> *> Treap<T, CompareT>::split(TreapNode<T> *node, T value, CompareT compare_) {
   if (!node) {
     return std::make_pair(nullptr, nullptr);
   }
 
-  if (this->compare(node->value, value)) {
+  if (compare_(node->value, value)) {
     node->subtree_size -= get_subtree_size(node->right);
-    auto right_pair = split(node->right, value);
+    auto right_pair = split(node->right, value, compare_);
     node->right = right_pair.first;
     node->subtree_size += get_subtree_size(node->right);
     return std::make_pair(node, right_pair.second);
   } else {
     node->subtree_size -= get_subtree_size(node->left);
-    auto left_pair = split(node->left, value);
+    auto left_pair = split(node->left, value, compare_);
     node->left = left_pair.second;
     node->subtree_size += get_subtree_size(node->left);
     return std::make_pair(left_pair.first, node);
@@ -86,74 +91,53 @@ std::pair<TreapNode<T> *, TreapNode<T> *> Treap<T, CompareT>::split(TreapNode<T>
 template<typename T, typename CompareT>
 void Treap<T, CompareT>::add(T value) {
   auto new_node = new TreapNode<T>(value);
-  auto splited = split(root, value);
+  auto splited = split(root, value, compare);
   root = merge(merge(splited.first, new_node), splited.second);
 }
 
 template<typename T, typename CompareT>
 void Treap<T, CompareT>::remove(T value) {
-  auto splited = split(root, value);
-  root = merge(splited.first, split(splited.second, ++value).second);
+  auto splited = split(root, value, compare);
+  root = merge(splited.first, split(splited.second, ++value, compare).second);
 }
 
 template<typename T, typename CompareT>
-T Treap<T, CompareT>::get_k_stat(int k) {
-  auto *dq = new std::deque<TreapNode<T> *>;
-  T stat;
-  dq->push_front(root);
+T Treap<T, CompareT>::get_k_stat(int k) const {
+  assert(k >= 0 and k < root->subtree_size);
   // рассчитываем статистику для корня
   int current_stat = root->subtree_size - 1 - get_subtree_size(root->right);
+  auto current_element = root;
   // идём от корня вниз
-  while (!dq->empty()) {
-    auto current_element = dq->front();
-    dq->pop_front();
-
+  while (true) {
     if (k < current_stat & current_element->left != nullptr) {
-      dq->push_front(current_element->left);
+      current_element = current_element->left;
       // если идём влево то надо из текущей статистки вычесть количество элементов в левом поддререве за
       // вычетом элементов его левого потомка
-      current_stat = current_stat - (get_subtree_size(dq->front()) - get_subtree_size(dq->front()->left));
+      current_stat = current_stat - (get_subtree_size(current_element) - get_subtree_size(current_element->left));
     } else if (k > current_stat & current_element->right != nullptr) {
-      dq->push_front(current_element->right);
+      current_element = current_element->right;
       // если идём вправо то надо к текущей статистке прибавить количество элементов в правом поддререве за
       // вычетом элементов его правого потомка
-      current_stat = current_stat + get_subtree_size(dq->front()) - get_subtree_size(dq->front()->right);
+      current_stat = current_stat + get_subtree_size(current_element) - get_subtree_size(current_element->right);
     } else {
       return current_element->value;
     }
   }
-  delete dq;
 }
 
 template<typename T, typename CompareT>
-void Treap<T, CompareT>::pre_order(std::function<void(TreapNode<T> *)> action) {
-  auto *dq = new std::deque<TreapNode<T> *>;
-  dq->push_front(root);
-  // идём от корня вниз
-  while (!dq->empty()) {
-    auto next_element = dq->front();
-    dq->pop_front();
-
-    if (next_element->right != nullptr) {
-      dq->push_front(next_element->right);
-    }
-
-    // первым всегда будет обработан левый элемент
-    if (next_element->left != nullptr) {
-      dq->push_front(next_element->left);
-    }
-
-    action(next_element);
-  }
-  delete dq;
+void Treap<T, CompareT>::delete_subtree(TreapNode<T> *node) {
+  if (!node) return;
+  delete_subtree(node->left);
+  delete_subtree(node->right);
+  delete node;
 }
 
 template<typename T, typename CompareT>
 Treap<T, CompareT>::~Treap() {
-  pre_order([](TreapNode<T> *node) {
-    delete node;
-  });
+  delete_subtree(root);
 }
+
 template<typename T, typename CompareT>
 int Treap<T, CompareT>::get_subtree_size(TreapNode<T> *node) {
   return node == nullptr ? 0 : node->subtree_size;
