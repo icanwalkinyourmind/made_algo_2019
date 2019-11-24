@@ -27,6 +27,10 @@ class SimpleTree {
  public:
   explicit SimpleTree(CompareT compare);
   ~SimpleTree();
+  SimpleTree(const SimpleTree &) = delete;
+  SimpleTree(SimpleTree &&) = delete;
+  SimpleTree &operator=(const SimpleTree &) = delete;
+  SimpleTree &operator=(SimpleTree &&) = delete;
   void add(T value);
   void print();
  private:
@@ -44,28 +48,24 @@ void SimpleTree<T, CompareT>::add(T value) {
     return;
   }
 
-  auto *q = new std::queue<Node<T> *>;
-  q->push(root);
-  while (!q->empty()) {
-    Node<T> *next_node = q->front();
-    q->pop();
+  auto next_node = root;
+  while (next_node != nullptr) {
     if (this->compare(value, next_node->value)) {
       // если значение меньше текущего, уходим влево и проверяем следующую вершину
       if (next_node->left == nullptr) {
         next_node->left = new Node<T>(value);
       } else {
-        q->push(next_node->left);
+        next_node = next_node->left;
       }
     } else {
       // иначе уходим вправо
       if (next_node->right == nullptr) {
         next_node->right = new Node<T>(value);
       } else {
-        q->push(next_node->right);
+        next_node = next_node->right;
       }
     }
   }
-  delete q;
 }
 
 template<typename T, typename CompareT>
