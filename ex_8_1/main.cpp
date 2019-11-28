@@ -22,7 +22,7 @@ class OpenAddressingSet {
   OpenAddressingSet &operator=(OpenAddressingSet &&) = delete;
   bool put(T key);
   bool remove(T key);
-  bool contains(T key);
+  bool contains(T key) const;
  private:
   struct Node {
     explicit Node(T key) {
@@ -35,7 +35,7 @@ class OpenAddressingSet {
   int table_size = 8;
   int table_capacity = 0;
   Node **table = new Node *[table_size]{};
-  unsigned int get_key_position(T key);
+  unsigned int get_key_position(T key) const;
   void extend_table();
   HashT hash;
 };
@@ -51,7 +51,7 @@ OpenAddressingSet<T, HashT>::~OpenAddressingSet() {
 }
 
 template<typename T, typename HashT>
-unsigned int OpenAddressingSet<T, HashT>::get_key_position(T key) {
+unsigned int OpenAddressingSet<T, HashT>::get_key_position(T key) const {
   int i = 1;
   unsigned int hash_value = hash(key);
   unsigned int index = hash_value % table_size;
@@ -82,6 +82,7 @@ bool OpenAddressingSet<T, HashT>::put(T key) {
   if ((float) table_capacity / table_size > resize_level) extend_table();
   int index = get_key_position(key);
   if (table[index] == nullptr or (table[index] != nullptr and !table[index]->available)) {
+    delete table[index];
     table[index] = new Node(key);
     ++table_capacity;
     return true;
@@ -100,7 +101,7 @@ bool OpenAddressingSet<T, HashT>::remove(T key) {
 }
 
 template<typename T, typename HashT>
-bool OpenAddressingSet<T, HashT>::contains(T key) {
+bool OpenAddressingSet<T, HashT>::contains(T key) const {
   auto element = table[get_key_position(key)];
   return element != nullptr and element->available;
 }
