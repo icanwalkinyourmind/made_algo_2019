@@ -11,15 +11,6 @@
 #include <string>
 #include <functional>
 
-template<typename T>
-struct Node {
-  explicit Node(T key) {
-    this->key = key;
-  }
-  T key;
-  bool available = true;
-};
-
 template<typename T, typename HashT>
 class OpenAddressingSet {
  public:
@@ -33,10 +24,17 @@ class OpenAddressingSet {
   bool remove(T key);
   bool contains(T key);
  private:
+  struct Node {
+    explicit Node(T key) {
+      this->key = key;
+    }
+    T key;
+    bool available = true;
+  };
   const float resize_level = 0.75;
   int table_size = 8;
   int table_capacity = 0;
-  Node<T> **table = new Node<T> *[table_size]{};
+  Node **table = new Node *[table_size]{};
   unsigned int get_key_position(T key);
   void extend_table();
   HashT hash;
@@ -69,7 +67,7 @@ void OpenAddressingSet<T, HashT>::extend_table() {
   auto old_table = table;
   int old_table_size = table_size;
   table_size = table_size * 2;
-  table = new Node<T> *[table_size]{};
+  table = new Node *[table_size]{};
 
   for (int i = 0; i < old_table_size; ++i) {
     if (old_table[i] != nullptr and old_table[i]->available) {
@@ -84,7 +82,7 @@ bool OpenAddressingSet<T, HashT>::put(T key) {
   if ((float) table_capacity / table_size > resize_level) extend_table();
   int index = get_key_position(key);
   if (table[index] == nullptr or (table[index] != nullptr and !table[index]->available)) {
-    table[index] = new Node<T>(key);
+    table[index] = new Node(key);
     ++table_capacity;
     return true;
   }
