@@ -38,6 +38,7 @@ class OpenAddressingSet {
   unsigned int get_key_position(T key) const;
   void extend_table();
   HashT hash;
+  unsigned int probe(int i, unsigned int hash_value) const;
 };
 
 template<typename T, typename HashT>
@@ -51,12 +52,17 @@ OpenAddressingSet<T, HashT>::~OpenAddressingSet() {
 }
 
 template<typename T, typename HashT>
+unsigned int OpenAddressingSet<T, HashT>::probe(int i, unsigned int hash_value) const {
+  return (hash_value + i / 2 + i * i / 2) % table_size;
+}
+
+template<typename T, typename HashT>
 unsigned int OpenAddressingSet<T, HashT>::get_key_position(T key) const {
   int i = 1;
   unsigned int hash_value = hash(key);
   unsigned int index = hash_value % table_size;
   while (table[index] != nullptr && !(table[index]->key == key)) {
-    index = (hash_value + i / 2 + i * i / 2) % table_size;
+    index = probe(i, hash_value);
     ++i;
   }
   return index;
@@ -80,14 +86,30 @@ void OpenAddressingSet<T, HashT>::extend_table() {
 template<typename T, typename HashT>
 bool OpenAddressingSet<T, HashT>::put(T key) {
   if ((float) table_capacity / table_size > resize_level) extend_table();
-  int index = get_key_position(key);
-  if (table[index] == nullptr or (table[index] != nullptr and !table[index]->available)) {
+  int key_position = get_key_position(key);
+  if (table[key_position] == nullptr) {
+    // ключа нет в таблице, просто вставляеем его
+    table[key_position] = new Node(key);
+    ++table_capacity;
+    return true;
+  } else if (!table[key_position]->available) {
+    // если ключь есть, но удалён, вставляем его на место первого встреченного удалённого элемента, или в пустую ячейку
+    // пердварительно удаляем старый элмент, чтобы не создавать дубликаты
+    delete table[key_position];
+    int i = 1;
+    unsigned int hash_value = hash(key);
+    unsigned int index = hash_value % table_size;
+    while (table[index] != nullptr && table[index]->available) {
+      index = probe(i, hash_value);
+      ++i;
+    }
     delete table[index];
     table[index] = new Node(key);
     ++table_capacity;
     return true;
+  } else {
+    return false;
   }
-  return false;
 }
 
 template<typename T, typename HashT>
@@ -95,6 +117,7 @@ bool OpenAddressingSet<T, HashT>::remove(T key) {
   int key_position = get_key_position(key);
   if (table[key_position] != nullptr and table[key_position]->available) {
     table[key_position]->available = false;
+    --table_capacity;
     return true;
   }
   return false;
