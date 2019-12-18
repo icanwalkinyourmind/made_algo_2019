@@ -75,6 +75,12 @@ struct Node {
 class HaffmanTree {
  public:
   explicit HaffmanTree(std::map<byte, int> *frequency_map);
+  ~HaffmanTree();
+  HaffmanTree(const HaffmanTree &) = delete;
+  HaffmanTree(HaffmanTree &&) = delete;
+  HaffmanTree &operator=(const HaffmanTree &) = delete;
+  HaffmanTree &operator=(HaffmanTree &&) = delete;
+  void pre_order(std::function<void(Node *)> action);
   void fill_codes_map(std::map<byte, std::vector<bool>> *map);
   Node *root = nullptr;
  private:
@@ -127,6 +133,33 @@ void HaffmanTree::fill_codes_map(std::map<byte, std::vector<bool>> *map) {
   assert(map->empty());
   std::vector<bool> init_vector;
   generate_codes(root, init_vector, map);
+}
+
+void HaffmanTree::pre_order(std::function<void(Node *)> action) {
+  auto dq = std::deque<Node *>();
+  dq.push_front(root);
+  // идём от корня вниз
+  while (!dq.empty()) {
+    auto next_element = dq.front();
+    dq.pop_front();
+
+    if (next_element->right != nullptr) {
+      dq.push_front(next_element->right);
+    }
+
+    // первым всегда будет обработан левый элемент
+    if (next_element->left != nullptr) {
+      dq.push_front(next_element->left);
+    }
+
+    action(next_element);
+  }
+}
+
+HaffmanTree::~HaffmanTree() {
+  pre_order([](Node *node) {
+    delete node;
+  });
 }
 
 void serialize_int(int val, BitsWriter *writer) {
@@ -191,10 +224,10 @@ static std::vector<byte> encode_stream(IInputStream &input) {
   }
 
   auto haffman_tree = new HaffmanTree(&frequency_map);
-  auto codes_map = new std::map<byte, std::vector<bool>>;
+  auto codes_map = std::map<byte, std::vector<bool>>();
   // для того чтобы каждый раз не генерировать код элемента,
   // создадим словарь кодов для всех символов алфавита
-  haffman_tree->fill_codes_map(codes_map);
+  haffman_tree->fill_codes_map(&codes_map);
 
   BitsWriter writer;
 
@@ -204,12 +237,10 @@ static std::vector<byte> encode_stream(IInputStream &input) {
   //затем закодированный файл, в последнем байте записано количество бит
   //которое необходимо сичтать из предпоследнего байта
   for (byte byte : raw_data) {
-    for (bool bit: codes_map->at(byte)) {
+    for (bool bit: codes_map.at(byte)) {
       writer.write_bit(bit);
     }
   }
-
-  delete codes_map;
   delete haffman_tree;
 
   // если размер сжатых данных больше чем не сжатых, то записываем в файл сырые данные
@@ -300,4 +331,35 @@ void Decode(IInputStream &compressed, IOutputStream &original) {
       original.Write(b);
     }
   }
+}
+
+int main() {
+  // Получаем данные, которые нужно закодировать
+  vector<vector<byte> > input;
+
+  fillInputs(input);
+
+  // Сжимаем данные
+  vector<vector<byte> > compressed;
+  compressed.resize(input.size());
+  for (unsigned int i = 0; i < input.size(); i++) {
+    CInputStream iStream(input[i]);
+    COutputStream oStream(compressed[i]);
+    Encode(iStream, oStream);
+  }
+
+  // Распаковываем сжатые данные и проверяем, что они совпадают с оригиналом
+  for (unsigned int i = 0; i < input.size(); i++) {
+    vector<byte> output;
+    CInputStream iStream(compressed[i]);
+    COutputStream oStream(output);
+    Decode(iStream, oStream);
+    if (!isEqual(input[i], output)) {
+      cout << -1;
+      return 0;
+    }
+  }
+
+  // Вычисляем степень сжатия
+  cout << (100. * calculateSize(compressed) / calculateSize(input));
 }
